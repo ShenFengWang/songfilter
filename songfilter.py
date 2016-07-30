@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 import pymysql
 import os
+import re
 
 mysql_host = 'localhost'
 mysql_user = 'root'
@@ -12,6 +13,24 @@ except pymysql.err.InternalError:
     pass
 except Exception as e:
     exit(e)
+
+def formatPath(path):
+    if path[0] == "~":
+        path = os.path.expanduser(path)
+    return os.path.realpath(path)
+
+def validatePath(path, createPath=True):
+    if not os.path.exists(path):
+        if createPath:
+            try:
+                os.makedirs(path, mode = 0o771, exist_ok = True)
+            except Exception as e:
+                print("! Unable to create dir: ", end = "")
+                exit(e)
+        else:
+            return False
+    return True
+
 
 class Configuration:
 
@@ -53,14 +72,13 @@ class Configuration:
             return configData
 
     def getScfgId(self, alias=None):
-        with mysql.cursor() as cursor:
             if alias is None:
-                cursor.execute("SELECT `storehouse` FROM `config` WHERE `id` = %s", self.cfgId)
-                configData = cursor.fetchone()
+                configData = self.getSetting('storehouse')
                 return configData['storehouse']
             else:
-                cursor.execute("SELECT `id` FROM `storehouse_cfg` WHERE `alias` = %s", alias)
-                storehouseData = cursor.fetchone()
+                with mysql.cursor() as cursor:
+                    cursor.execute("SELECT `id` FROM `storehouse_cfg` WHERE `alias` = %s", alias)
+                    storehouseData = cursor.fetchone()
                 if not storehouseData:
                     raise Exception("No storehouse named '%s'" % alias)
                 return storehouseData['id']
@@ -118,11 +136,11 @@ class Configuration:
 
     def setDefaultCfg(alias):
         cfg = self.getCfgData(alias)
-            if not cfg['is_default']:
-                with mysql.cursor() as cursor:
-                    cursor.execute("UPDATE `config` SET `is_default` = 0")
-                    cursor.execute("UPDATE `config` SET `is_default` = 1 WHERE `id` = %s", cfg['id'])
-                    mysql.commit()
+        if not cfg['is_default']:
+            with mysql.cursor() as cursor:
+                cursor.execute("UPDATE `config` SET `is_default` = 0")
+                cursor.execute("UPDATE `config` SET `is_default` = 1 WHERE `id` = %s", cfg['id'])
+                mysql.commit()
 
     def showScfg(self):
         with mysql.cursor() as cursor:
@@ -134,19 +152,13 @@ class Configuration:
             print(" " * 4 + "%-30s%s" % (line['alias'], line['store_path']))
 
     def updateStorePath(self, path, alias=None):
-        if path[0] == "~":
-            path = os.path.expanduser(path)
-        path = os.path.realpath(path)
-        if not os.path.exists(path):
-            try:
-                os.makedirs(path, mode = 0o771, exist_ok = True)
-            except Exception as e:
-                print("! Unable to create dir: ", end = "")
-                exit(e)
+        path = formatPath(path)
+        validatePath(path)
         with mysql.cursor() as cursor:
             cursor.execute("SELECT `alias` FROM `storehouse_cfg` WHERE `store_path` = %s", path)
             usedHouse = cursor.fetchone()
         if usedHouse:
+
             raise Exception("The path '%s' is used by storehouse '%s', please enter another path" % (path, usedHouse['alias']))
         try:
             scfgId = self.getScfgId(alias)
@@ -197,6 +209,76 @@ class Configuration:
             cursor.execute("DELETE FROM `config` WHERE `id` = %s", cfg['id'])
             mysql.commit()
 
+    def listCfg(self):
+        print("Configuration name: %s" % self.getSetting('alias')['alias'])
+        for name in ('split_singer_song', 'split_singers', 'ignore_regex', 'filter_type', 'suffix_cover', 'format_filename'):
+            self.handleArgument(name, True)
+        self.showSuffix()
+        self.showScfgUsed()
+
+    def renameCfg(self, newname):
+        try:
+            self.getCfgData(newname)
+        except Exception:
+            isExist = False
+        else:
+            isExist = True
+        if isExist:
+            raise Exception("New name is used, please enter another one")
+        self.updateSetting('alias', newname)
+
+
+class Validation:
+
+    cfg = None
+
+    def __init__(self):
+        cfgId = Configuration(True).cfgId
+        with mysql.cursor() as cursor:
+            cursor.execute("SELECT `config`.*,`storehouse_cfg`.`alias` as `storehouse_name`,`storehouse_cfg`.`store_path` FROM `config` JOIN `storehouse_cfg` ON `config`.`storehouse` = `storehouse_cfg`.`id` WHERE `config`.`id` = %s", cfgId)
+            self.cfg = cursor.fetchone()
+            validatePath(self.cfg['store_path'])
+            cursor.execute("SELECT `suffix` as `name`,`order_num` FROM `suffix` WHERE `configid` = %s ORDER BY `order_num`", cfgId)
+            self.cfg['suffix'] = cursor.fetchall()
+        self.cfg['suffix_name'] = [x['name'] for x in self.cfg['suffix']]
+
+    def getSplitext(self, path):
+        basename = os.path.basename(path)
+        splitname = os.path.splitext(basename)
+        return {'name' : splitname[0], 'ext' : splitname[1][1:]}
+
+    def filterSuffix(self, files):
+        result = []
+        if files:
+            for path in files:
+                split = self.getSplitext(path)
+                if split['ext'] in self.cfg['suffix_name']:
+                    result.append(path)
+        return result
+
+    def filterIgnore(self, files):
+        result = []
+        if files:
+            for path in files:
+                split = self.getSplitext(path)
+                if re.search(self.cfg['ignore_regex'], split['name']) is None:
+                    result.append(path)
+        return result
+
+    def getStandardFiles(self, files=None):
+        if files:
+            for index,name in enumerate(files):
+                files[index] = formatPath(name)
+            originFiles = [path for path in files if validatePath(path, False)]
+        else:
+            presentPath = os.getcwd()
+            files = os.listdir()
+            originFiles = [presentPath + "/" + name for name in files if os.path.isfile(presentPath + "/" + name)]
+        if self.cfg['ignore_regex']:
+            originFiles = self.filterIgnore(originFiles)
+        return self.filterSuffix(originFiles)
+
+
 
 if __name__ == "__main__":
 
@@ -225,6 +307,8 @@ if __name__ == "__main__":
 
     def getCfgClass():
         try:
+            if args.config and args.config.__len__() > 1:
+                raise Exception("too many argumens with '-c' or '--config'")
             cfg = Configuration(args.config[0] if args.config else True)
         except Exception as e:
             exit(e)
@@ -335,14 +419,38 @@ if __name__ == "__main__":
                 except Exception as e:
                     exit(e)
             else:
-                raise Exception("too many arguments with '-s' or '--storehouse'")
+                exit("too many arguments with '-s' or '--storehouse'")
     # -c --config
-    elif args.config:
-        pass
+    elif args.config is not None:
+        argsLen = args.config.__len__()
+        if argsLen <= 1:
+            cfg = getCfgClass()
+            cfg.listCfg()
+        elif argsLen == 2:
+            cfg = Configuration(args.config[0])
+            cfg.rename(args.config[1])
+        else:
+            exit("too many arguments with '-c' or '--config'")
 
     # -f --filter
-    if args.filter:
-        pass
+    # -a --add / -p --print -q --quiet
+    if args.filter is not None:
+        if not args.quiet:
+            print("Starting filter files")
+        try:
+            vd = Validation()
+            standardFiles  = vd.getStandardFiles(args.filter)
+            if not args.quiet:
+                print(" " * 4 + "Get standard files:")
+                if not standardFiles:
+                    print(" " * 8 + "no file")
+                else:
+                    for path in standardFiles:
+                        print(" " * 8 + path)
+                    filterType = {1 : "name and hash", 2 : "file name", 3 : "file hash"}
+                    print(" " * 4 + "Filtering (%s):" % filterType[vd.cfg['filter_type']])
+        except Exception as e:
+            exit(e)
     # -r --report
     elif args.report:
         pass
