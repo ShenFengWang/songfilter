@@ -215,14 +215,14 @@ class Configuration:
         except Exception:
             with mysql.cursor() as cursor:
                 cursor.execute("INSERT INTO `storehouse_cfg` (`alias`,`store_path`) VALUES (%s,%s)", (alias, path))
-                mysql.commit()
                 scfgId = mysql.insert_id()
-                cursor.execute("CREATE TABLE %s (`id` int not null auto_increment primary key,\
-                                                 `song_id` int not null,\
-                                                 `file_name` varchar(255) not null,\
-                                                 `file_suffix` varchar(10) not null,\
-                                                 `save_status` tinyint not null default 0\
-                                                 )", "storehouse_%s" % scfgId)
+                mysql.commit()
+                cursor.execute("CREATE TABLE " + "`storehouse_%s`" % scfgId + " (`id` int not null auto_increment primary key,\
+                                                                                 `song_id` int not null,\
+                                                                                 `file_name` varchar(255) not null,\
+                                                                                 `file_suffix` varchar(10) not null,\
+                                                                                 `save_status` tinyint not null default 0\
+                                                                                 )")
                 mysql.commit()
         else:
             with mysql.cursor() as cursor:
@@ -297,7 +297,7 @@ class Validation:
             cursor.execute("SELECT `config`.*,`storehouse_cfg`.`alias` as `storehouse_name`,`storehouse_cfg`.`store_path` FROM `config` JOIN `storehouse_cfg` ON `config`.`storehouse` = `storehouse_cfg`.`id` WHERE `config`.`id` = %s", cfgId)
             self.cfg = cursor.fetchone()
             validatePath(self.cfg['store_path'])
-            validatePath(self.cfg['store_path'] + reportPath)
+            validatePath(self.cfg['store_path'] + self.reportPath)
             cursor.execute("SELECT `suffix` as `name`,`order_num` FROM `suffix` WHERE `configid` = %s ORDER BY `order_num`", cfgId)
             self.cfg['suffix'] = cursor.fetchall()
         self.cfg['suffix_name'] = [x['name'] for x in self.cfg['suffix']]
@@ -307,7 +307,7 @@ class Validation:
         splitname = os.path.splitext(basename)
         filename = splitname[0]
         if ignore:
-            filename = re.sub("(.*)|（.*）|[.*]|【.*】|{.*}", "", filename)
+            filename = re.sub("\(.*\)|（.*）|\[.*\]|【.*】|\{.*\}", "", filename)
         return {'name' : filename, 'ext' : splitname[1][1:]}
 
     def filterSuffix(self, files):
@@ -342,7 +342,7 @@ class Validation:
         return self.filterSuffix(originFiles)
 
     def getSplitSongFuc(self):
-        directionData = cfg['split_singer_song'].rsplit("/", 1)
+        directionData = self.cfg['split_singer_song'].rsplit("/", 1)
         directionStr = directionData[-1]
         directionStr = "l" if directionStr.lower() == "l" else "r"
         splitFuc = str.split if directionStr == "l" else str.rsplit
@@ -357,10 +357,10 @@ class Validation:
             if splitedData.__len__() == 1:
                 return result
             originSinger = splitedData[splitFuc['order'] + 1]
-            if not cfg['split_singers']:
+            if not self.cfg['split_singers']:
                 result['singer'] = [originSinger.strip()]
             else:
-                singers = re.split(cfg['split_singers'], originSinger)
+                singers = re.split(self.cfg['split_singers'], originSinger)
                 result['singer'] = [name.strip() for name in singers]
             return result
         else:
@@ -381,7 +381,7 @@ class Validation:
     def getSongId(self, fileData=None, fileHash=None):
         if fileData:
             with mysql.cursor() as cursor:
-                if fileData.__len__() == 1:
+                if not fileData.__contains__("singer"):
                     cursor.execute("SELECT `id` FROM `songs` WHERE `song_name` = %s AND `singer_name` = ''", fileData['song'])
                 else:
                     singers = self.getSingersId(fileData['singer'])
@@ -403,7 +403,7 @@ class Validation:
         if not songId:
             return True
         with mysql.cursor() as cursor:
-            cursor.execute("SELECT `id` FROM %s WHERE `song_id` = %s", (self.getStorehouseTable(), songId))
+            cursor.execute("SELECT `id` FROM `%s`" % self.getStorehouseTable() + " WHERE `song_id` = %s", songId)
             songData = cursor.fetchone()
             return False if songData else True
 
@@ -415,7 +415,7 @@ class Validation:
     def isBetter(self, fileData, newExt):
         songId = self.getSongId(fileData = fileData)
         with mysql.cursor() as cursor:
-            cursor.execute("SELECT `file_suffix` FROM %s WHERE `song_id` = %s", (self.getStorehouseTable(), songId))
+            cursor.execute("SELECT `file_suffix` FROM `%s`" % self.getStorehouseTable() + " WHERE `song_id` = %s", songId)
             oldExt = cursor.fetchone()['file_suffix']
         if oldExt == newExt:
             return False
@@ -437,7 +437,7 @@ class Validation:
                     return False
             songId = self.getSongId(fileData = filenameData)
             with mysql.cursor() as cursor:
-                cursor.execute("SELECT `save_status` FROM %s WHERE `song_id` = %s", (self.getStorehouseTable(), songId))
+                cursor.execute("SELECT `save_status` FROM `%s`" % self.getStorehouseTable() + " WHERE `song_id` = %s", songId)
                 scfgData = cursor.fetchone()
             if not scfgData['save_status']:
                 return False
@@ -461,18 +461,18 @@ class Validation:
         if not songId:
             return True
         with mysql.cursor() as cursor:
-            cursor.execute("SELECT `id` FROM %s WHERE `song_id` = %s", (self.getStorehouseTable(), songId))
+            cursor.execute("SELECT `id` FROM `%s`" % self.getStorehouseTable() + " WHERE `song_id` = %s", songId)
             songData = cursor.fetchone()
             return False if songData else True
 
     def filterFileHash(self, path):
         fileHash = self.getFileHash(path)
-        return fileHash if self.isNewSongByHash(path) else False
+        return fileHash if self.isNewSongByHash(fileHash) else False
 
     def filterFiles(self, path, quiet=False):
         result = []
-        filterName = True if cfg['filter_type'] == 1 or cfg['filter_type'] == 2 else False
-        filterHash = True if cfg['filter_type'] == 1 or cfg['filter_type'] == 3 else False
+        filterName = True if self.cfg['filter_type'] == 1 or self.cfg['filter_type'] == 2 else False
+        filterHash = True if self.cfg['filter_type'] == 1 or self.cfg['filter_type'] == 3 else False
         for newFile in path:
             if not quiet:
                 print(" " * 8 + "[%s]" % newFile)
@@ -516,29 +516,30 @@ class Validation:
             for name in singerList:
                 cursor.execute("SELECT `id` FROM `singers` WHERE `name` = %s", name)
                 if not cursor.fetchone():
-                    cursor.execute("INSERT INTO `singers` ('name') VALUE (%s)", name)
+                    cursor.execute("INSERT INTO `singers` (`name`) VALUE (%s)", name)
                     mysql.commit()
         return self.getSingersId(singerList)
 
     def addSong(self, songName, singerStr):
         with mysql.cursor() as cursor:
-            mysql.execute("INSERT INTO `songs` ('singer_name', 'song_name') VALUES (%s, %s)", (singerStr, songName))
+            cursor.execute("INSERT INTO `songs` (`singer_name`, `song_name`) VALUES (%s, %s)", (singerStr, songName))
+            mysqlInsertId = mysql.insert_id()
             mysql.commit()
-            return mysql.insert_id()
+            return mysqlInsertId
 
     def addHash(self, songId, fileHash):
         with mysql.cursor() as cursor:
-            mysql.execute("INSERT INTO `songs_hash` (`song_id`, `file_hash`) VALUES (%s, %s)", (songId, fileHash))
+            cursor.execute("INSERT INTO `songs_hash` (`song_id`, `file_hash`) VALUES (%s, %s)", (songId, fileHash))
             mysql.commit()
 
     def addTargetStorehouse(self, songId, filename):
         with mysql.cursor() as cursor:
-            cursor.execute("INSERT INTO %s (`song_id`, `file_name`, `file_suffix`) VALUES (%s, %s, %s)", (self.getStorehouseTable(), songId, filename['name'] ,filename['ext']))
+            cursor.execute("INSERT INTO `%s`" % self.getStorehouseTable() + " (`song_id`, `file_name`, `file_suffix`) VALUES (%s, %s, %s)", (songId, filename['name'] ,filename['ext']))
             mysql.commit()
 
     def updateTargetStorehouse(self, songId, filename):
         with mysql.cursor() as cursor:
-            cursor.execute("UPDATE %s SET `file_name` = %s, `file_suffix` = %s WHERE `song_id` = %s", (self.getStorehouseTable(), filename['name'], filename['ext'], songId))
+            cursor.execute("UPDATE `%s`" % self.getStorehouseTable() + " SET `file_name` = %s, `file_suffix` = %s WHERE `song_id` = %s", (filename['name'], filename['ext'], songId))
             mysql.commit()
 
     def clearNewSongs(self):
@@ -564,7 +565,7 @@ class Validation:
 
     def getOldFilename(songId):
         with mysql.cursor() as cursor:
-            cursor.execute("SELECT `file_name`, `file_suffix` FROM %s WHERE `song_id` = %s", (self.getStorehouseTable(), songId))
+            cursor.execute("SELECT `file_name`, `file_suffix` FROM `%s`" % self.getStorehouseTable() + " WHERE `song_id` = %s", songId)
             oldFile = cursor.fetchone()
             oldFilename = "%s.%s" % (oldFile['file_name'], oldFile['file_suffix'])
             return oldFilename
@@ -582,10 +583,10 @@ class Validation:
         if not add:
             self.clearNewSongs()
             if not quiet:
-                print(" " * 4 + "Saving (ADD):")
+                print(" " * 4 + "Saving:")
         else:
             if not quiet:
-                print(" " * 4 + "Saving:")
+                print(" " * 4 + "Saving (ADD):")
         for newSong in newSongs:
             if newSong['name'] is True:
                 newSong['name'] = {"name" : self.getSplitext(newSong['path']), "type" : "new"}
@@ -632,9 +633,9 @@ class Validation:
                 if not quiet:
                     print(" " * 12 + "FILENAME: %s" % newFilename)
                     print("DONE!")
-            if not quiet:
-                print(" ")
-                print("TOTAL: %s NEW SONGS ADDED!" % newSongs.__len__())
+        if not quiet:
+            print(" ")
+            print("TOTAL: %s NEW SONGS ADDED!" % newSongs.__len__())
 
     def moveFiles(self, originFile, targetFile):
         os.rename(originFile, targetFile)
@@ -642,7 +643,7 @@ class Validation:
     def reportFiles(self, quiet=False):
         if not quiet:
             print("Reporting Songs:")
-        standardFiles = self.getStandardFiles(self.cfg['store_path'])
+        standardFiles = self.getStandardFiles(path = self.cfg['store_path'])
         if not standardFiles:
             if not quiet:
                 print(" " * 4 + "no file")
@@ -660,7 +661,7 @@ class Validation:
                     if not quiet:
                         print(" " * 12 + "Confirm")
                         print(" " * 12 + "Update status")
-                    cursor.execute("UPDATE %s SET `save_status` = 1 WHERE `song_id` = %s", (self.getStorehouseTable(), songData['song_id']))
+                    cursor.execute("UPDATE `%s`" % self.getStorehouseTable() + " SET `save_status` = 1 WHERE `song_id` = %s", (songData['song_id']))
                     mysql.commit()
                     if not quiet:
                         print(" " * 12 + "Move file to total directory")
@@ -668,6 +669,8 @@ class Validation:
                 else:
                     if not quiet:
                         print(" " * 12 + "Ignore")
+            if not quiet:
+                print(" ")
         if not quiet:
             print(" " * 4 + "Clearing table:")
         with mysql.cursor() as cursor:
@@ -839,7 +842,7 @@ if __name__ == "__main__":
         try:
             vd = Validation()
             if not args.quiet:
-                print("Starting filter files")
+                print("Starting filter files:")
             standardFiles = vd.getStandardFiles(args.filter)
             if not args.quiet:
                 print(" " * 4 + "Get standard files:")
@@ -848,6 +851,7 @@ if __name__ == "__main__":
                 else:
                     for path in standardFiles:
                         print(" " * 8 + path)
+                    print(" ")
             if standardFiles:
                 filterType = {1 : "name and hash", 2 : "file name", 3 : "file hash"}
                 print(" " * 4 + "Filtering (%s):" % filterType[vd.cfg['filter_type']])
