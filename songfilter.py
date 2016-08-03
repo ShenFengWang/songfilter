@@ -589,7 +589,17 @@ class Validation:
         else:
             if not quiet:
                 print(" " * 4 + "Saving (ADD):")
+        ignoreSongsCount = 0
         for newSong in newSongs:
+            secondValidate = self.filterFiles([newSong['path']], True)
+            if not secondValidate:
+                if not quiet:
+                    print(" " * 8 + newSong['path'])
+                    print("REPEATED IN NEW SONGS, IGNORED")
+                ignoreSongsCount += 1
+                continue
+            else:
+                newSong = secondValidate[0]
             if newSong['name'] is True:
                 newSong['name'] = {"name" : self.getSplitext(newSong['path']), "type" : "new"}
             if newSong['hash'] is True:
@@ -637,7 +647,7 @@ class Validation:
                     print("DONE!")
         if not quiet:
             print(" ")
-            print("TOTAL: %s NEW SONGS ADDED!" % newSongs.__len__())
+            print("TOTAL: %s NEW SONGS ADDED!" % newSongs.__len__() - ignoreSongsCount)
 
     def moveFiles(self, originFile, targetFile):
         os.rename(originFile, targetFile)
