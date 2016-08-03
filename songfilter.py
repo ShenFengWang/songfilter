@@ -4,6 +4,7 @@ import os
 import re
 import hashlib
 import shutil
+import platform
 
 mysql_host = 'localhost'
 mysql_user = 'root'
@@ -289,7 +290,7 @@ class Configuration:
 class Validation:
 
     cfg = None
-    reportPath = "/total/"
+    reportPath = "\\total\\" if platform.system() == "Windows" else "/total/"
 
     def __init__(self):
         cfgId = Configuration(True).cfgId
@@ -334,9 +335,10 @@ class Validation:
                 files[index] = formatPath(name)
             originFiles = [path for path in files if validatePath(path, False)]
         else:
-            presentPath = path.rstrip("/") if path else os.getcwd()
+            presentPath = path.rstrip("\\") if platform.system() == "Windows" else path.rstrip("/") if path else os.getcwd()
+            pathSplit = "\\" if platform.system() == "Windows" else "/"
             files = os.listdir(path if path else ".")
-            originFiles = [presentPath + "/" + name for name in files if os.path.isfile(presentPath + "/" + name)]
+            originFiles = [presentPath + pathSplit + name for name in files if os.path.isfile(presentPath + pathSplit + name)]
         if self.cfg['ignore_regex']:
             originFiles = self.filterIgnore(originFiles)
         return self.filterSuffix(originFiles)
