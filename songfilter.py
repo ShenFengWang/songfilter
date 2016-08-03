@@ -643,7 +643,7 @@ class Validation:
                     print(" " * 12 + "Update file for storehouse")
                 self.updateFile(newSong, targetPath + newFilename, targetPath + oldFilename)
                 if not quiet:
-                    print(" " * 12 + "FILENAME: %s" % newFilename)
+                    # print(" " * 12 + "FILENAME: %s" % newFilename)
                     print("DONE!")
         if not quiet:
             print(" ")
