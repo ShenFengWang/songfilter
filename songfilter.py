@@ -625,7 +625,7 @@ class Validation:
                     print(" " * 12 + "Copy file to storehouse")
                 self.copyFile(newSong['path'], "%s/%s.%s" % (self.cfg['store_path'], filename['name'], filename['ext']))
                 if not quiet:
-                    print(" " * 12 + "FILENAME: %s.%s" % (filename['name'], filename['ext']))
+                    # print(" " * 12 + "FILENAME: %s.%s" % (filename['name'], filename['ext']))
                     print(" " * 12 + "DONE!")
             else:
                 if not quiet:
