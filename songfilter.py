@@ -335,7 +335,7 @@ class Validation:
                 files[index] = formatPath(name)
             originFiles = [path for path in files if validatePath(path, False)]
         else:
-            presentPath = path.rstrip("\\") if platform.system() == "Windows" else path.rstrip("/") if path else os.getcwd()
+            presentPath = (path.rstrip("\\") if platform.system() == "Windows" else path.rstrip("/")) if path else os.getcwd()
             pathSplit = "\\" if platform.system() == "Windows" else "/"
             files = os.listdir(path if path else ".")
             originFiles = [presentPath + pathSplit + name for name in files if os.path.isfile(presentPath + pathSplit + name)]
