@@ -116,7 +116,7 @@ class Configuration:
     def getCfgData(self, alias):
         with mysql.cursor() as cursor:
             cursor.execute("SELECT `id`,`is_default` FROM `config` WHERE `alias` = %s", alias)
-            cofigData = cursor.fetchone()
+            configData = cursor.fetchone()
         if not configData:
             raise Exception("No configuration named '%s', you should create it with '-C' or '--newcfg'" % alias)
         else:
@@ -187,9 +187,12 @@ class Configuration:
             print(" " * 4 + ("[*] " if line['is_default'] else "[ ] ") + line['alias'])
 
     def setDefaultCfg(alias):
-        cfg = self.getCfgData(alias)
-        if not cfg['is_default']:
-            with mysql.cursor() as cursor:
+        with mysql.cursor() as cursor:
+            cursor.execute("SELECT `id`,`is_default` FROM `config` WHERE `alias` = %s", alias)
+            cfg = cursor.fetchone()
+            if not cfg:
+                raise Exception("no configuration named %s", alias)
+            if not cfg['is_default']:
                 cursor.execute("UPDATE `config` SET `is_default` = 0")
                 cursor.execute("UPDATE `config` SET `is_default` = 1 WHERE `id` = %s", cfg['id'])
                 mysql.commit()
