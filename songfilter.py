@@ -647,7 +647,7 @@ class Validation:
                     print("DONE!")
         if not quiet:
             print(" ")
-            print("TOTAL: %s NEW SONGS ADDED!" % newSongs.__len__() - ignoreSongsCount)
+            print("TOTAL: %s NEW SONGS ADDED!" % (newSongs.__len__() - ignoreSongsCount))
 
     def moveFiles(self, originFile, targetFile):
         os.rename(originFile, targetFile)
