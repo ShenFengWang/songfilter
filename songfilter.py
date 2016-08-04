@@ -169,9 +169,9 @@ class Configuration:
         try:
             self.getScfgId(newname)
         except Exception:
-            isExist = True
-        else:
             isExist = False
+        else:
+            isExist = True
         if isExist:
             raise Exception("New name is used, please enter another one")
         with mysql.cursor() as cursor:
@@ -244,9 +244,9 @@ class Configuration:
         try:
             cfg = self.getCfgData(alias)
         except Exception:
-            isExist = True
-        else:
             isExist = False
+        else:
+            isExist = True
         if isExist:
             raise Exception("The configuration name '%s' has been used, please enter another one" % alias)
         if storehouseAlias:
