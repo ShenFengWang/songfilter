@@ -592,7 +592,8 @@ class Validation:
     # newSongs = [ {"path" : str, "name" : {"song" : str, "type": "new"|"cover" [, "singer" : list] [, "song_id" : int]}, "hash" : str|True} ]
     def saveFiles(self, newSongs, quiet=False, add=False, justPrint=False):
         if not add:
-            self.clearNewSongs()
+            if not justPrint:
+                self.clearNewSongs()
             if not quiet:
                 print(" " * 4 + "Saving:")
         else:
