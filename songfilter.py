@@ -293,6 +293,7 @@ class Configuration:
 class Validation:
 
     cfg = None
+    fileBinary = {}
     reportPath = "\\total\\" if platform.system() == "Windows" else "/total/"
 
     def __init__(self):
@@ -431,7 +432,6 @@ class Validation:
     def filterFileName(self, path):
         fileName = self.getSplitext(path)['name']
         filenameData = self.splitFile(fileName)
-        filenameData['path'] = path
         if self.isNewSongByName(filenameData):
             filenameData['type'] = "new"
             return filenameData
@@ -458,8 +458,11 @@ class Validation:
     def getFileHash(self, path):
         with open(path, "rb") as bFile:
             hashObj = hashlib.sha1()
-            hashObj.update(bFile.read())
-            return hashObj.hexdigest()
+            fileContent =bFile.read()
+            hashObj.update(fileContent)
+            fileHash = hashObj.hexdigest()
+            self.fileBinary[fileHash] = fileContent
+            return fileHash
 
     def isNewSongByHash(self, fileHash):
         songId = self.getSongId(fileHash = fileHash)
@@ -575,16 +578,19 @@ class Validation:
             oldFilename = "%s.%s" % (oldFile['file_name'], oldFile['file_suffix'])
             return oldFilename
 
-    def copyFile(self, originFile, targetFile):
-        shutil.copy2(originFile, targetFile)
+    def copyFile(self, fileHash, targetFile):
+        # shutil.copy2(originFile, targetFile)
+        with open(targetFile, "wb") as newfile:
+            newfile.write(self.fileBinary[fileHash])
+        del self.fileBinary[fileHash]
 
-    def updateFile(self, originFile, targetFile, oldFile):
+    def updateFile(self, fileHash, targetFile, oldFile):
         os.remove(oldFile)
-        self.copyFile(originFile, targetFile)
+        self.copyFile(fileHash, targetFile)
 
 
     # newSongs = [ {"path" : str, "name" : {"song" : str, "type": "new"|"cover" [, "singer" : list] [, "song_id" : int]}, "hash" : str|True} ]
-    def saveFiles(self, newSongs, quiet=False, add=False):
+    def saveFiles(self, newSongs, quiet=False, add=False, justPrint=False):
         if not add:
             self.clearNewSongs()
             if not quiet:
@@ -594,15 +600,14 @@ class Validation:
                 print(" " * 4 + "Saving (ADD):")
         ignoreSongsCount = 0
         for newSong in newSongs:
-            secondValidate = self.filterFiles([newSong['path']], True)
-            if not secondValidate:
-                if not quiet:
-                    print(" " * 8 + newSong['path'])
-                    print("REPEATED IN NEW SONGS, IGNORED")
+            validateResult = self.filterFiles([newSong], quiet)
+            if not validateResult:
                 ignoreSongsCount += 1
                 continue
             else:
-                newSong = secondValidate[0]
+                newSong = validateResult[0]
+            if justPrint:
+                continue
             if newSong['name'] is True:
                 newSong['name'] = {"name" : self.getSplitext(newSong['path']), "type" : "new"}
             if newSong['hash'] is True:
@@ -626,10 +631,10 @@ class Validation:
                 self.addNewSongs(newSongId, "%s.%s" % (filename['name'], filename['ext']))
                 if not quiet:
                     print(" " * 12 + "Copy file to storehouse")
-                self.copyFile(newSong['path'], "%s/%s.%s" % (self.cfg['store_path'], filename['name'], filename['ext']))
+                self.copyFile(newSong['hash'], "%s/%s.%s" % (self.cfg['store_path'], filename['name'], filename['ext']))
                 if not quiet:
-                    # print(" " * 12 + "FILENAME: %s.%s" % (filename['name'], filename['ext']))
                     print(" " * 12 + "DONE!")
+                    print(" ")
             else:
                 if not quiet:
                     print(" " * 8 + "[C] %s" % newSong['path'])
@@ -644,11 +649,11 @@ class Validation:
                 targetPath = self.cfg['store_path'] + self.reportPath
                 if not quiet:
                     print(" " * 12 + "Update file for storehouse")
-                self.updateFile(newSong, targetPath + newFilename, targetPath + oldFilename)
+                self.updateFile(newSong['hash'], targetPath + newFilename, targetPath + oldFilename)
                 if not quiet:
-                    # print(" " * 12 + "FILENAME: %s" % newFilename)
                     print("DONE!")
-        if not quiet:
+                    print(" ")
+        if not quiet and not justPrint:
             print(" ")
             print("TOTAL: %s NEW SONGS ADDED!" % (newSongs.__len__() - ignoreSongsCount))
 
@@ -867,16 +872,7 @@ if __name__ == "__main__":
                     for path in standardFiles:
                         print(" " * 8 + path)
                     print(" ")
-            if standardFiles:
-                filterType = {1 : "name and hash", 2 : "file name", 3 : "file hash"}
-                print(" " * 4 + "Filtering (%s):" % filterType[vd.cfg['filter_type']])
-                newSongs = vd.filterFiles(standardFiles, args.quiet)
-            else:
-                exit(0)
-            if newSongs:
-                if args.print:
-                    exit(0)
-                vd.saveFiles(newSongs, args.quiet, args.add)
+            vd.saveFiles(standardFiles, args.quiet, args.add, args.print)
         except Exception as e:
             exit(e)
     # -r --report
