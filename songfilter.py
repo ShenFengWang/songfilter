@@ -386,6 +386,7 @@ class Validation:
 
     def getSongId(self, fileData=None, fileHash=None):
         if fileData:
+            fileData['song'] = fileData['song'].lower()
             with mysql.cursor() as cursor:
                 if not fileData.__contains__("singer"):
                     cursor.execute("SELECT `id` FROM `songs` WHERE `song_name` = %s AND `singer_name` = ''", fileData['song'])
@@ -530,7 +531,7 @@ class Validation:
 
     def addSong(self, songName, singerStr):
         with mysql.cursor() as cursor:
-            cursor.execute("INSERT INTO `songs` (`singer_name`, `song_name`) VALUES (%s, %s)", (singerStr, songName))
+            cursor.execute("INSERT INTO `songs` (`singer_name`, `song_name`) VALUES (%s, %s)", (singerStr, songName.lower()))
             mysqlInsertId = mysql.insert_id()
             mysql.commit()
             return mysqlInsertId
