@@ -101,3 +101,7 @@ SONGFILTER 音乐过滤器
 *   配置选项
 *   在需要过滤文件的文件夹下执行"songfilter.py -f"
 *   试听歌曲，筛选后，执行"songfilter.py -r"
+
+筛选
+---
+    musicplaycontroller.py（使用audacious播放器）删除歌曲（播放列表及文件）
