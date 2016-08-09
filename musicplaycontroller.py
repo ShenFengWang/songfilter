@@ -7,8 +7,6 @@ def deleteSong():
     if songPath == "No song playing.":
         print(songPath)
         return False
-    print(songPath)
-    print(songPosition)
 
     subprocess.call(["audtool", "playlist-delete", songPosition])
     os.remove(songPath)
