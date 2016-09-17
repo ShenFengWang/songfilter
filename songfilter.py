@@ -499,12 +499,15 @@ class Validation:
             else:
                 filterNameResult = True
             if filterHash:
-                filterHashResult = self.filterFileHash(newFile)
-                if not quiet:
-                    if filterHashResult:
-                        print(" " * 12 + "File hash: %s" % filterHashResult)
-                    else:
-                        print(" " * 12 + "Filter hash: REPEATED SONG")
+                if filterNameResult:
+                    filterHashResult = self.filterFileHash(newFile)
+                    if not quiet:
+                        if filterHashResult:
+                            print(" " * 12 + "File hash: %s" % filterHashResult)
+                        else:
+                            print(" " * 12 + "Filter hash: REPEATED SONG")
+                else:
+                    filterHashResult = False
             else:
                 filterHashResult = True
             if filterNameResult and filterHashResult:
